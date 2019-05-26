@@ -15,9 +15,8 @@ import com.simplekjl.letschat.models.CustomMessage
 class MessageAdapter(
     context: Context,
     resource: Int,
-    textViewResourceId: Int,
     objects: MutableList<CustomMessage>
-) : ArrayAdapter<CustomMessage>(context, resource, textViewResourceId, objects) {
+) : ArrayAdapter<CustomMessage>(context, resource, objects) {
 
 
     override fun getView(position: Int, convertView: View, parent: ViewGroup): View {
