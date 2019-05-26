@@ -37,7 +37,7 @@ class MainActivity : AppCompatActivity() {
         mMessagesDatabaseReference = mFirebaseDatabase.getReference("messages")
 
         // Initialize message ListView and its adapter
-        val customMessages = ArrayList<CustomMessage>()
+        val customMessages =  mutableListOf<CustomMessage>()
         mMessagesAdapter = MessageAdapter(this, R.layout.item_message, customMessages)
 
         //initilize progress bar
