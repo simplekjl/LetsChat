@@ -7,8 +7,7 @@ import android.text.TextWatcher
 import android.view.View
 import androidx.appcompat.app.AppCompatActivity
 import androidx.databinding.DataBindingUtil
-import com.google.firebase.database.DatabaseReference
-import com.google.firebase.database.FirebaseDatabase
+import com.google.firebase.database.*
 import com.simplekjl.letschat.adapters.MessageAdapter
 import com.simplekjl.letschat.databinding.ActivityMainBinding
 import com.simplekjl.letschat.models.CustomMessage
@@ -24,6 +23,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var mMessagesDatabaseReference: DatabaseReference
     private lateinit var viewBinding: ActivityMainBinding
     private lateinit var mMessagesAdapter: MessageAdapter
+    private lateinit var mChildEventListener : ChildEventListener
 
     private lateinit var userName: String;
 
@@ -36,11 +36,13 @@ class MainActivity : AppCompatActivity() {
         mFirebaseDatabase = FirebaseDatabase.getInstance()
         mMessagesDatabaseReference = mFirebaseDatabase.getReference("messages")
 
+
         // Initialize message ListView and its adapter
         val customMessages =  mutableListOf<CustomMessage>()
         mMessagesAdapter = MessageAdapter(this, R.layout.item_message, customMessages)
+        viewBinding.messageListView.adapter = mMessagesAdapter
 
-        //initilize progress bar
+        //initialize progress bar
         viewBinding.progressBar.visibility = View.INVISIBLE
 
         //Image Picker button
@@ -49,7 +51,7 @@ class MainActivity : AppCompatActivity() {
             // TODO do something
         }
 
-        //Sedn button
+        //Send button
         viewBinding.messageEditText.addTextChangedListener(object : TextWatcher {
             override fun afterTextChanged(s: Editable?) {
                 // nothing to do
@@ -71,9 +73,36 @@ class MainActivity : AppCompatActivity() {
         //Send messages action
         viewBinding.sendButton.setOnClickListener { _ ->
 
-            var message = CustomMessage(viewBinding.messageEditText.text.toString(),userName,"")
+            var message = CustomMessage(viewBinding.messageEditText.text.toString(),userName,null)
             mMessagesDatabaseReference.push().setValue(message)
             viewBinding.messageEditText.setText("")
         }
+
+        // listener to our database
+        mChildEventListener = object : ChildEventListener{
+            override fun onCancelled(p0: DatabaseError) {
+
+            }
+
+            override fun onChildMoved(p0: DataSnapshot, p1: String?) {
+
+            }
+
+            override fun onChildChanged(p0: DataSnapshot, p1: String?) {
+
+            }
+
+            override fun onChildAdded(p0: DataSnapshot, p1: String?) {
+                var customMessage  = p0.getValue(CustomMessage::class.java)
+              //  var customMessage  = p0.value as? CustomMessage
+                mMessagesAdapter.add(customMessage)
+            }
+
+            override fun onChildRemoved(p0: DataSnapshot) {
+
+            }
+        }
+        // adding the listener to the reference
+        mMessagesDatabaseReference.addChildEventListener(mChildEventListener)
     }
 }

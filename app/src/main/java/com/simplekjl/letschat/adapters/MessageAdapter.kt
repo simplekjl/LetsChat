@@ -19,29 +19,32 @@ class MessageAdapter(
 ) : ArrayAdapter<CustomMessage>(context, resource, objects) {
 
 
-    override fun getView(position: Int, convertView: View, parent: ViewGroup): View {
+    override fun getView(position: Int, convertView: View?, parent: ViewGroup): View {
+        var view: View = (context as Activity).layoutInflater.inflate(R.layout.item_message, parent, false)
 
-
-        val photoImageView = convertView.findViewById(R.id.photoImageView) as ImageView
-        val messageTextView = convertView.findViewById(R.id.messageTextView) as TextView
-        val authorTextView = convertView.findViewById(R.id.nameTextView) as TextView
+        val photoImageView = view.findViewById(R.id.photoImageView) as ImageView
+        val messageTextView = view.findViewById(R.id.messageTextView) as TextView
+        val authorTextView = view.findViewById(R.id.nameTextView) as TextView
 
         val message = getItem(position)
 
-        val isPhoto = message.photoURL != null
+        val isPhoto = message?.photoURL != null
         if (isPhoto) {
             messageTextView.visibility = View.GONE
             photoImageView.visibility = View.VISIBLE
             Glide.with(photoImageView.context)
-                .load(message.photoURL)
+                .load(message?.photoURL)
                 .into(photoImageView)
         } else {
             messageTextView.visibility = View.VISIBLE
             photoImageView.visibility = View.GONE
-            messageTextView.setText(message.text)
+            messageTextView.text = message?.text
         }
-        authorTextView.setText(message.name)
+        authorTextView.text = message?.name
 
-        return convertView
+        return view
     }
+
+
+    class MessageViewHolder
 }
