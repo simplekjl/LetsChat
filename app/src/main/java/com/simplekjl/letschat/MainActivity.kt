@@ -70,7 +70,9 @@ class MainActivity : AppCompatActivity() {
 
         //Send messages action
         viewBinding.sendButton.setOnClickListener { _ ->
-            //TODO send data to the database
+
+            var message = CustomMessage(viewBinding.messageEditText.text.toString(),userName,"")
+            mMessagesDatabaseReference.push().setValue(message)
             viewBinding.messageEditText.setText("")
         }
     }
