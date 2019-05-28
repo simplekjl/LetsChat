@@ -7,6 +7,7 @@ import android.os.Bundle
 import android.text.Editable
 import android.text.InputFilter
 import android.text.TextWatcher
+import android.util.Log
 import android.view.Menu
 import android.view.MenuInflater
 import android.view.MenuItem
@@ -20,6 +21,8 @@ import com.google.android.gms.tasks.Task
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseUser
 import com.google.firebase.database.*
+import com.google.firebase.remoteconfig.FirebaseRemoteConfig
+import com.google.firebase.remoteconfig.FirebaseRemoteConfigSettings
 import com.google.firebase.storage.FirebaseStorage
 import com.google.firebase.storage.StorageReference
 import com.google.firebase.storage.UploadTask
@@ -30,18 +33,23 @@ import java.util.*
 
 class MainActivity : AppCompatActivity() {
 
-    private val TAG = "MainActivity"
+    companion object{
+        private const val TAG = "MainActivity"
+        const val ANONYMOUS = "anonymous"
+        const val DEFAULT_MSG_LENGTH_LIMIT = 1000
+        const val MSG_LENGTH_KEY = "msg_length"
+        const val RC_SIGN_IN: Int = 12
+        const val RC_PHOTO_PICKER: Int = 2
+    }
 
-    val ANONYMOUS = "anonymous"
-    val DEFAULT_MSG_LENGTH_LIMIT = 1000
-    val RC_SIGN_IN: Int = 12
-    val RC_PHOTO_PICKER: Int = 2
     //firebase
     private lateinit var mFirebaseDatabase: FirebaseDatabase
     private lateinit var mMessagesDatabaseReference: DatabaseReference
     private var mChildEventListener: ChildEventListener? = null
     private lateinit var mFirebaseStorage: FirebaseStorage
     private lateinit var mChatStorageReference: StorageReference
+
+    private lateinit var mFirebaseRemoteConfig: FirebaseRemoteConfig
     //activity
     private lateinit var viewBinding: ActivityMainBinding
     private lateinit var mMessagesAdapter: MessageAdapter
@@ -61,7 +69,7 @@ class MainActivity : AppCompatActivity() {
         mFirebaseDatabase = FirebaseDatabase.getInstance()
         mFirebaseAuth = FirebaseAuth.getInstance()
         mFirebaseStorage = FirebaseStorage.getInstance()
-
+        mFirebaseRemoteConfig = FirebaseRemoteConfig.getInstance()
 
         mMessagesDatabaseReference = mFirebaseDatabase.getReference("messages")
         mChatStorageReference = mFirebaseStorage.reference.child("chat_photos")
@@ -78,7 +86,7 @@ class MainActivity : AppCompatActivity() {
         //Image Picker button
 
         viewBinding.photoPickerButton.setOnClickListener {
-            var intent: Intent = Intent(Intent.ACTION_GET_CONTENT)
+            val intent = Intent(Intent.ACTION_GET_CONTENT)
             intent.type = "image/jpeg"
             intent.putExtra(Intent.EXTRA_LOCAL_ONLY, true)
             startActivityForResult(Intent.createChooser(intent, "Complete action using"), RC_PHOTO_PICKER)
@@ -106,14 +114,14 @@ class MainActivity : AppCompatActivity() {
         //Send messages action
         viewBinding.sendButton.setOnClickListener { _ ->
 
-            var message = CustomMessage(viewBinding.messageEditText.text.toString(), userName, null)
+            val message = CustomMessage(viewBinding.messageEditText.text.toString(), userName, null)
             mMessagesDatabaseReference.push().setValue(message)
             viewBinding.messageEditText.setText("")
         }
 
 
         mAuthStateListener = FirebaseAuth.AuthStateListener { firebaseAuth ->
-            var user: FirebaseUser? = firebaseAuth.currentUser
+            val user: FirebaseUser? = firebaseAuth.currentUser
             if (user != null) {
                 // user signed in
                 //Toast.makeText(applicationContext, "Welcome, you've signed in.", Toast.LENGTH_LONG).show()
@@ -130,6 +138,44 @@ class MainActivity : AppCompatActivity() {
                 )
             }
         }
+
+        val config :FirebaseRemoteConfigSettings = FirebaseRemoteConfigSettings.Builder()
+            .setDeveloperModeEnabled(BuildConfig.DEBUG)
+            .build()
+        mFirebaseRemoteConfig.setConfigSettings(config)
+
+        val defaultConfiguration = mutableMapOf<String,Any>()
+        defaultConfiguration[MSG_LENGTH_KEY] = DEFAULT_MSG_LENGTH_LIMIT
+        //setting up new configuration
+        mFirebaseRemoteConfig.setDefaults(defaultConfiguration)
+
+        fetchConfig()
+
+
+    }
+
+    private fun fetchConfig(){
+        var cacheExpiration : Long = 3600
+        if (mFirebaseRemoteConfig.info.configSettings.isDeveloperModeEnabled){
+            cacheExpiration = 0
+        }
+        mFirebaseRemoteConfig.fetch(cacheExpiration)
+            .addOnSuccessListener {
+                mFirebaseRemoteConfig.fetchAndActivate()
+                applyRetrievedLengthLimit()
+
+            }.addOnFailureListener{
+                // this case will happen when offline
+                Log.w(TAG,"Error fetching config",it)
+                applyRetrievedLengthLimit()
+            }
+
+    }
+    private fun applyRetrievedLengthLimit(){
+        var msgLength  = mFirebaseRemoteConfig.getLong(MSG_LENGTH_KEY)
+        //adapt the edit text
+        viewBinding.messageEditText.filters = arrayOf<InputFilter>(InputFilter.LengthFilter(msgLength.toInt()))
+        Log.d(TAG, "$MSG_LENGTH_KEY=$msgLength")
     }
 
     private fun onSignedInInitilized(name: String) {
@@ -160,7 +206,7 @@ class MainActivity : AppCompatActivity() {
                 }
 
                 override fun onChildAdded(p0: DataSnapshot, p1: String?) {
-                    var customMessage = p0.getValue(CustomMessage::class.java)
+                    val customMessage = p0.getValue(CustomMessage::class.java)
                     //  var customMessage  = p0.value as? CustomMessage
                     mMessagesAdapter.add(customMessage)
                 }
@@ -170,15 +216,19 @@ class MainActivity : AppCompatActivity() {
                 }
             }
             // adding the listener to the reference
-            mMessagesDatabaseReference.addChildEventListener(mChildEventListener!!)
+            mChildEventListener?.let{mMessagesDatabaseReference.addChildEventListener(it)}
+//            mMessagesDatabaseReference.addChildEventListener(mChildEventListener)
         }
     }
 
     private fun detachDatabaseListener() {
-        if (mChildEventListener != null) {
-            mMessagesDatabaseReference.removeEventListener(mChildEventListener!!)
+        mChildEventListener?.let { mMessagesDatabaseReference.removeEventListener(it)
             mChildEventListener = null
         }
+//        if (mChildEventListener != null) {
+//            mMessagesDatabaseReference.removeEventListener(mChildEventListener)
+//            mChildEventListener = null
+//        }
     }
 
     override fun onResume() {
@@ -207,14 +257,14 @@ class MainActivity : AppCompatActivity() {
                 finish()
             }
         } else if (requestCode == RC_PHOTO_PICKER && resultCode == Activity.RESULT_OK) {
-            var selectedImageUri: Uri = data?.data ?: Uri.EMPTY
-            var photoRef: StorageReference =
-                mChatStorageReference.child(selectedImageUri.lastPathSegment)
+            val selectedImageUri: Uri = data?.data ?: Uri.EMPTY
+            val photoRef: StorageReference =
+                mChatStorageReference.child(selectedImageUri.lastPathSegment ?: "")
             //upload the file to Firebase
-            var uploadTask = photoRef.putFile(selectedImageUri)
+            val uploadTask = photoRef.putFile(selectedImageUri)
 
             //register observers to listen for when the download is done or if it falls
-            val urlTask = uploadTask.continueWithTask(Continuation<UploadTask.TaskSnapshot, Task<Uri>> { task ->
+            uploadTask.continueWithTask(Continuation<UploadTask.TaskSnapshot, Task<Uri>> { task ->
                 if (!task.isSuccessful) {
                     task.exception?.let {
                         throw it
@@ -224,7 +274,7 @@ class MainActivity : AppCompatActivity() {
             }).addOnCompleteListener { task ->
                 if (task.isSuccessful) {
                     val downloadUri = task.result
-                    var customMessage = CustomMessage(null, userName, downloadUri.toString())
+                    val customMessage = CustomMessage(null, userName, downloadUri.toString())
                     mMessagesDatabaseReference.push().setValue(customMessage)
                 } else {
                     // Handle failures
@@ -240,7 +290,7 @@ class MainActivity : AppCompatActivity() {
 
 
     override fun onCreateOptionsMenu(menu: Menu?): Boolean {
-        var inflater: MenuInflater = menuInflater
+        val inflater: MenuInflater = menuInflater
         inflater.inflate(R.menu.main_menu, menu)
         return true
     }
