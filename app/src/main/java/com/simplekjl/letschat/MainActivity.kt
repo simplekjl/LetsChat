@@ -34,7 +34,7 @@ import java.util.*
 class MainActivity : AppCompatActivity() {
 
     companion object{
-        private val TAG = "MainActivity"
+        private const val TAG = "MainActivity"
         const val ANONYMOUS = "anonymous"
         const val DEFAULT_MSG_LENGTH_LIMIT = 1000
         const val MSG_LENGTH_KEY = "msg_length"
@@ -216,15 +216,19 @@ class MainActivity : AppCompatActivity() {
                 }
             }
             // adding the listener to the reference
-            mMessagesDatabaseReference.addChildEventListener(mChildEventListener!!)
+            mChildEventListener?.let{mMessagesDatabaseReference.addChildEventListener(it)}
+//            mMessagesDatabaseReference.addChildEventListener(mChildEventListener)
         }
     }
 
     private fun detachDatabaseListener() {
-        if (mChildEventListener != null) {
-            mMessagesDatabaseReference.removeEventListener(mChildEventListener!!)
+        mChildEventListener?.let { mMessagesDatabaseReference.removeEventListener(it)
             mChildEventListener = null
         }
+//        if (mChildEventListener != null) {
+//            mMessagesDatabaseReference.removeEventListener(mChildEventListener)
+//            mChildEventListener = null
+//        }
     }
 
     override fun onResume() {
@@ -255,7 +259,7 @@ class MainActivity : AppCompatActivity() {
         } else if (requestCode == RC_PHOTO_PICKER && resultCode == Activity.RESULT_OK) {
             val selectedImageUri: Uri = data?.data ?: Uri.EMPTY
             val photoRef: StorageReference =
-                mChatStorageReference.child(selectedImageUri.lastPathSegment!!)
+                mChatStorageReference.child(selectedImageUri.lastPathSegment ?: "")
             //upload the file to Firebase
             val uploadTask = photoRef.putFile(selectedImageUri)
 
